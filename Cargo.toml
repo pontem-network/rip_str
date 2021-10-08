@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-seshat-unicode = "0.0.14"
-memchr = "2.4.1"
+seshat-unicode = { version = "0.0.15" }
+memchr = { version = "2.4.1", default-features = false }

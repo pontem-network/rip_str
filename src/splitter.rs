@@ -1,9 +1,11 @@
 use crate::segment::SegmentType;
+use alloc::collections::VecDeque;
+use alloc::string::ToString;
+use alloc::vec;
+use core::cmp::min;
+use core::mem;
 use memchr::memrchr;
 use seshat::unicode::Segmentation;
-use std::cmp::min;
-use std::collections::VecDeque;
-use std::mem;
 
 pub const MAX_BLOCK_SIZE: usize = 1024;
 pub const MIN_BLOCK_SIZE: usize = 512;
@@ -62,16 +64,13 @@ impl<'a> Splitter<'a> {
                         self.segments.push_front(prev)
                     }
                 }
+            } else if let SegmentType::Utf8(char_seq) = &mut current_seq {
+                char_seq.extend(seq.chars());
             } else {
-                if let SegmentType::Utf8(char_seq) = &mut current_seq {
-                    char_seq.extend(seq.chars());
-                } else {
-                    let is_current_empty = current_seq.is_empty();
-                    let prev =
-                        mem::replace(&mut current_seq, SegmentType::Utf8(seq.chars().collect()));
-                    if !is_current_empty {
-                        self.segments.push_front(prev)
-                    }
+                let is_current_empty = current_seq.is_empty();
+                let prev = mem::replace(&mut current_seq, SegmentType::Utf8(seq.chars().collect()));
+                if !is_current_empty {
+                    self.segments.push_front(prev)
                 }
             }
         }
@@ -121,6 +120,9 @@ impl<'a> Iterator for Splitter<'a> {
 mod tests {
     use crate::segment::SegmentType;
     use crate::splitter::Splitter;
+    use alloc::string::{String, ToString};
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     fn split_check(partition: &[&str]) {
         let text: String = partition.iter().map(|p| p.to_string()).collect();

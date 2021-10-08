@@ -1,9 +1,12 @@
 use crate::splitter::{Splitter, MAX_BLOCK_SIZE, MIN_BLOCK_SIZE};
+use alloc::collections::VecDeque;
+use alloc::fmt::{Debug, Display, Formatter};
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 use core::mem;
-use std::cmp::Ordering;
-use std::collections::VecDeque;
-use std::fmt::{Debug, Display, Formatter};
-use std::ops::Range;
+use core::ops::Range;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq)]
 pub struct Segment {
@@ -86,7 +89,7 @@ impl Segment {
         }
     }
 
-    pub fn insert(&mut self, index: usize, text: &str) -> Option<VecDeque<Box<Segment>>> {
+    pub fn insert(&mut self, index: usize, text: &str) -> Option<VecDeque<Segment>> {
         let index = index - self.index;
         let mut new_segments = Splitter::new(text).collect::<VecDeque<_>>();
 
@@ -94,34 +97,33 @@ impl Segment {
             if let Some(val) = new_segments.pop_front() {
                 self.tp = val;
             }
-        } else {
-            if index == self.len() - 1 {
-                self.try_merge(&mut new_segments);
-            } else if index == 0 {
-                if let Some(mut first) = new_segments.pop_front() {
-                    mem::swap(&mut self.tp, &mut first);
-                    new_segments.push_back(first);
-                    self.try_merge(&mut new_segments);
-                }
-            } else {
-                new_segments.push_back(self.tp.split(index));
+        } else if index == self.len() - 1 {
+            self.try_merge(&mut new_segments);
+        } else if index == 0 {
+            if let Some(mut first) = new_segments.pop_front() {
+                mem::swap(&mut self.tp, &mut first);
+                new_segments.push_back(first);
                 self.try_merge(&mut new_segments);
             }
+        } else {
+            new_segments.push_back(self.tp.split(index));
+            self.try_merge(&mut new_segments);
         }
 
         if new_segments.is_empty() {
-            return None;
+            None
+        } else {
+            Some(
+                new_segments
+                    .into_iter()
+                    .filter(|t| !t.is_empty())
+                    .map(|t| Segment::new(0, t))
+                    .collect(),
+            )
         }
-        return Some(
-            new_segments
-                .into_iter()
-                .filter(|t| !t.is_empty())
-                .map(|t| Box::new(Segment::new(0, t)))
-                .collect(),
-        );
     }
 
-    pub fn cut(&mut self, range: Range<usize>) -> Option<Box<Segment>> {
+    pub fn cut(&mut self, range: Range<usize>) -> Option<Segment> {
         let start = range.start - self.index;
         let end = range.end - self.index;
 
@@ -137,10 +139,10 @@ impl Segment {
             let last = last.split(end - start);
             if last.len() < MIN_BLOCK_SIZE || self.tp.len() < MIN_BLOCK_SIZE {
                 if let Some(last) = self.tp.try_merge(last) {
-                    if last.len() == 0 {
+                    if last.is_empty() {
                         None
                     } else {
-                        Some(Box::new(Segment::new(0, last)))
+                        Some(Segment::new(0, last))
                     }
                 } else {
                     None
@@ -151,7 +153,7 @@ impl Segment {
         }
     }
 
-    pub fn replace(&mut self, range: Range<usize>, text: &str) -> Option<VecDeque<Box<Segment>>> {
+    pub fn replace(&mut self, range: Range<usize>, text: &str) -> Option<VecDeque<Segment>> {
         let start = range.start - self.index;
         let end = range.end - self.index;
         let mut new_segments = Splitter::new(text).collect::<VecDeque<_>>();
@@ -163,21 +165,22 @@ impl Segment {
             self.tp.split(start);
             self.try_merge(&mut new_segments);
 
-            if end.len() > 0 {
+            if !end.is_empty() {
                 new_segments.push_back(end);
             }
         }
 
         if new_segments.is_empty() {
-            return None;
+            None
+        } else {
+            Some(
+                new_segments
+                    .into_iter()
+                    .filter(|t| !t.is_empty())
+                    .map(|t| Segment::new(0, t))
+                    .collect(),
+            )
         }
-        return Some(
-            new_segments
-                .into_iter()
-                .filter(|t| !t.is_empty())
-                .map(|t| Box::new(Segment::new(0, t)))
-                .collect(),
-        );
     }
 
     pub fn len(&self) -> usize {
@@ -193,7 +196,7 @@ impl Segment {
     }
 
     pub fn contains(&self, index: usize) -> bool {
-        return self.ord(index) == Ordering::Equal;
+        self.ord(index) == Ordering::Equal
     }
 
     pub fn ord(&self, index: usize) -> Ordering {
@@ -212,7 +215,7 @@ impl Segment {
 }
 
 impl Debug for SegmentType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             SegmentType::Ascii(_) => write!(f, "Ascii({})", self),
             SegmentType::Utf8(_) => write!(f, "Utf8({})", self),
@@ -222,7 +225,7 @@ impl Debug for SegmentType {
 }
 
 impl Display for SegmentType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             SegmentType::Ascii(val) => f.write_str(String::from_utf8_lossy(val).as_ref()),
             SegmentType::Utf8(val) => {
@@ -242,13 +245,13 @@ impl Display for SegmentType {
 }
 
 impl Debug for Segment {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}-{:?}", self.index, self.tp)
     }
 }
 
 impl Display for Segment {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.tp)
     }
 }
@@ -292,7 +295,9 @@ impl Default for Segment {
 #[cfg(test)]
 mod tests {
     use crate::segment::{Segment, SegmentType};
-    use std::cmp::Ordering;
+    use alloc::format;
+    use alloc::string::ToString;
+    use core::cmp::Ordering;
 
     #[test]
     fn test_ord() {

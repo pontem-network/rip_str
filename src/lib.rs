@@ -1,15 +1,20 @@
+#![no_std]
+extern crate alloc;
+
 use crate::segment::Segment;
 use crate::splitter::Splitter;
-use std::fmt::{Display, Formatter};
-use std::mem;
-use std::ops::Range;
+use alloc::fmt::{Display, Formatter};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::mem;
+use core::ops::Range;
 
 pub(crate) mod segment;
 pub(crate) mod splitter;
 
 #[derive(Debug)]
 pub struct RipString {
-    nodes: Vec<Box<Segment>>,
+    nodes: Vec<Segment>,
     /// Index of last edit node.
     last_edit: usize,
 }
@@ -18,23 +23,21 @@ impl RipString {
     pub fn new() -> RipString {
         let seq = Segment::default();
         RipString {
-            nodes: vec![Box::new(seq)],
+            nodes: vec![seq],
             last_edit: 0,
         }
     }
 
     pub fn edit(&mut self, range: Range<usize>, new: &str) {
-        if range.len() == 0 {
+        if range.is_empty() {
             if new.is_empty() {
                 return;
             }
             self.insert(range.start, new);
+        } else if new.is_empty() {
+            self.cut(range);
         } else {
-            if new.is_empty() {
-                self.cut(range);
-            } else {
-                self.replace(range, new);
-            }
+            self.replace(range, new);
         }
     }
 
@@ -58,8 +61,9 @@ impl RipString {
         let seg_index = self.find_segment(range.start);
         let last_seg_index = self.find_segment(range.end);
 
+        let node = &mut self.nodes[seg_index];
+
         if last_seg_index == seg_index {
-            let node = &mut self.nodes[seg_index];
             if let Some(node) = node.cut(range) {
                 if seg_index == self.nodes.len() - 1 {
                     self.nodes.push(node);
@@ -68,7 +72,6 @@ impl RipString {
                 }
             }
         } else {
-            let node = &mut self.nodes[seg_index];
             // We ignore the result as in this case, it is always None.
             node.cut(range.clone());
             let node = &mut self.nodes[last_seg_index];
@@ -106,13 +109,12 @@ impl RipString {
                 self.nodes.extend(nodes);
             }
             self.nodes.extend(tail);
-        } else {
-            if let Some(new_nodes) = new_nodes {
-                for (i, new_node) in new_nodes.into_iter().enumerate() {
-                    self.nodes.insert(seg_index + i + 1, new_node);
-                }
+        } else if let Some(new_nodes) = new_nodes {
+            for (i, new_node) in new_nodes.into_iter().enumerate() {
+                self.nodes.insert(seg_index + i + 1, new_node);
             }
         }
+
         self.last_edit = last_seg_index;
         self.fix_index_from(seg_index);
     }
@@ -142,12 +144,12 @@ impl From<&str> for RipString {
         let (_, mut nodes) = Splitter::new(val).fold((0, vec![]), |(mut index, mut acc), seg| {
             let seg = Segment::new(index, seg);
             index += seg.len();
-            acc.push(Box::new(seg));
+            acc.push(seg);
             (index, acc)
         });
 
         if nodes.is_empty() {
-            nodes.push(Box::new(Segment::default()));
+            nodes.push(Segment::default());
         }
 
         RipString {
@@ -157,8 +159,14 @@ impl From<&str> for RipString {
     }
 }
 
+impl Default for RipString {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Display for RipString {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         for node in &self.nodes {
             node.fmt(f)?;
         }
@@ -169,6 +177,7 @@ impl Display for RipString {
 #[cfg(test)]
 mod tests {
     use crate::RipString;
+    use alloc::string::ToString;
 
     #[test]
     pub fn edit_test() {
