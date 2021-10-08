@@ -1,5 +1,5 @@
-### rip string
-### rip_string is an implementation of a mutable string.
+### rip str
+### rip_str is an implementation of a mutable string.
 
 ####Feature:
 - Unicode support. 
