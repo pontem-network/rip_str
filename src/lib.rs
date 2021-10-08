@@ -88,7 +88,7 @@ impl RipString {
                     .map(|(_, b)| b),
             );
         }
-        self.last_edit = last_seg_index;
+        self.last_edit = seg_index;
         self.fix_index_from(seg_index);
     }
 
@@ -115,7 +115,7 @@ impl RipString {
             }
         }
 
-        self.last_edit = last_seg_index;
+        self.last_edit = seg_index;
         self.fix_index_from(seg_index);
     }
 
