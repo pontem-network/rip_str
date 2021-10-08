@@ -137,7 +137,11 @@ impl Segment {
             let last = last.split(end - start);
             if last.len() < MIN_BLOCK_SIZE || self.tp.len() < MIN_BLOCK_SIZE {
                 if let Some(last) = self.tp.try_merge(last) {
-                    Some(Box::new(Segment::new(0, last)))
+                    if last.len() == 0 {
+                        None
+                    } else {
+                        Some(Box::new(Segment::new(0, last)))
+                    }
                 } else {
                     None
                 }
@@ -293,11 +297,11 @@ mod tests {
     #[test]
     fn test_ord() {
         let seg = Segment::new(5, SegmentType::Ascii("Hello world".as_bytes().to_vec()));
-        assert_eq!(seg.ord(1), Ordering::Less);
+        assert_eq!(seg.ord(1), Ordering::Greater);
         assert_eq!(seg.ord(5), Ordering::Equal);
         assert_eq!(seg.ord(14), Ordering::Equal);
-        assert_eq!(seg.ord(16), Ordering::Greater);
-        assert_eq!(seg.ord(17), Ordering::Greater);
+        assert_eq!(seg.ord(16), Ordering::Equal);
+        assert_eq!(seg.ord(17), Ordering::Less);
         assert!(!seg.contains(0));
         assert!(seg.contains(14));
         assert!(!seg.contains(17));
@@ -362,5 +366,19 @@ mod tests {
         let mut seg = Segment::new(0, SegmentType::Ascii("Hello world".as_bytes().to_vec()));
         assert!(seg.replace(6..20, "Json").is_none());
         assert_eq!(seg.to_string(), "Hello Json");
+
+        let mut seg = Segment::new(0, SegmentType::Ascii("Hello world".as_bytes().to_vec()));
+        assert!(seg.replace(5..20, " ").is_none());
+        assert_eq!(seg.to_string(), "Hello ");
+    }
+
+    #[test]
+    fn replace_small() {
+        let mut seg = Segment::new(0, SegmentType::Ascii("hello world".as_bytes().to_vec()));
+        let mut new_seg = seg.replace(1..9, "era").unwrap();
+        assert_eq!(
+            "herald",
+            format!("{}{}", seg.to_string(), new_seg.pop_front().unwrap())
+        );
     }
 }
